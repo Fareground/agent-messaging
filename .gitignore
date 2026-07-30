@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.egg-info/
+dist/
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+
+# Local agent/editor state
+.claude/
