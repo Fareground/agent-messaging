@@ -63,8 +63,11 @@ analysis.
 ## Install
 
 ```bash
-pip install git+https://github.com/Fareground/agent-messaging.git            # core (no web dependencies)
-pip install 'fg-amp[http] @ git+https://github.com/Fareground/agent-messaging.git'  # + HTTP transport (FastAPI/aiohttp)
+# fg-agent-id is a GitHub-only sibling, so install both together
+pip install "fg-agent-id @ git+https://github.com/Fareground/agent-id.git" \
+            "fg-amp @ git+https://github.com/Fareground/agent-messaging.git"       # core (no web dependencies)
+pip install "fg-agent-id @ git+https://github.com/Fareground/agent-id.git" \
+            "fg-amp[http] @ git+https://github.com/Fareground/agent-messaging.git"  # + HTTP transport (FastAPI/aiohttp)
 ```
 
 > **Package naming:** the installable distribution is `fg-amp` and the import
@@ -132,7 +135,8 @@ same end-to-end guarantees, plus membership invite/leave events.
 Run a relay anywhere; it only ever sees ciphertext.
 
 ```bash
-pip install 'fg-amp[http]' && amp-relay --port 8404
+pip install "fg-agent-id @ git+https://github.com/Fareground/agent-id.git" \
+            "fg-amp[http] @ git+https://github.com/Fareground/agent-messaging.git" && amp-relay --port 8404
 ```
 
 ```python
