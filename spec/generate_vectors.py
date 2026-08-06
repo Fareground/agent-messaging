@@ -3,7 +3,6 @@
 A second-language implementation must reproduce every `expected` byte-for-byte.
 Run: python spec/generate_vectors.py  (writes spec/vectors.json)
 """
-import base64
 import hashlib
 import json
 from pathlib import Path
@@ -72,6 +71,7 @@ vectors["session_key"] = {
 # 5. AEAD (ChaCha20-Poly1305) with a pinned nonce -> deterministic ciphertext.
 # encrypt() prepends a random nonce; pin it by calling the AEAD directly.
 from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305  # noqa: E402
+
 aead_key = bytes([7] * 32)
 nonce = bytes([3] * 12)
 pt = b"hello amp"
@@ -97,7 +97,6 @@ vectors["transcript_chain"] = {
 # 7. seal / open — deterministic blob built with a FIXED ephemeral + nonce so the
 # vector is reproducible; a second implementation must OPEN it to the plaintext.
 from cryptography.hazmat.primitives import hashes as _hashes  # noqa: E402
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PublicKey  # noqa: E402
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF as _HKDF  # noqa: E402
 
 recipient = X25519PrivateKey.from_private_bytes(SEED)  # recipient's static key
@@ -116,10 +115,10 @@ vectors["seal_open"] = {
 }
 
 # 8. AgentCard canonical signing payload + signature (composed object interop).
-from fg_amp.identity.card import AgentCard  # noqa: E402
-
 from fg_agent_id.signing import CONTEXT_AGENT_CARD  # noqa: E402
 from fg_agent_id.signing import signing_input as id_signing_input  # noqa: E402
+
+from fg_amp.identity.card import AgentCard  # noqa: E402
 
 card = AgentCard.create(keys, address_from_signing_key(signing_pub), "conformance-agent")
 vectors["agent_card"] = {

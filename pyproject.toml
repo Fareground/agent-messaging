@@ -32,11 +32,13 @@ http = ["fastapi>=0.110", "aiohttp>=3.9", "uvicorn[standard]>=0.30"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
-    "ruff>=0.8",
+    "ruff==0.16.1",
     "build>=1.0",
     "httpx>=0.27",
     "fastapi>=0.110",
     "aiohttp>=3.9",
+    # The wake-receiver end-to-end test serves a real app.
+    "uvicorn[standard]>=0.30",
     "hypothesis>=6.100",
 ]
 
@@ -56,6 +58,11 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# The vector generator inlines expected inputs and their hashes on one line so
+# each case reads as a single fact; wrapping them hurts more than it helps.
+"spec/generate_vectors.py" = ["E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

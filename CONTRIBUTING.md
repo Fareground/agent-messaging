@@ -46,5 +46,5 @@ See `SECURITY.md` — do not open a public issue for a vulnerability.
 
 ## Architecture
 
-Read `docs/BLUEPRINT.md` first. It carries the design, the layer boundaries,
-the threat model, and the roadmap.
+Read `spec/SPEC.md` first. It is normative for the wire format and carries
+the layer boundaries; `SECURITY.md` carries the threat model.

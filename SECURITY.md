@@ -17,7 +17,7 @@ In scope: the protocol design and the `fg_amp` reference
 implementation — identity/delegation, envelope signing/encryption, the session
 handshake/ratchet/resume, group membership, contact policy, and the relay.
 
-Out of scope (by design — documented in `docs/BLUEPRINT.md` §4):
+Out of scope (by design):
 - Content-level trust and agent alignment (prompt injection across an agent
   boundary is contained, not eliminated — see the threat model).
 - Endpoint/host compromise (a stolen agent private key impersonates that agent

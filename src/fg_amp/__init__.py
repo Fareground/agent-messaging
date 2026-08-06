@@ -3,7 +3,7 @@
 Agent-initiated, end-to-end-encrypted sessions between AI agents:
 verifiable agent + owner identity, pairwise and group sessions,
 persistent resume, code-enforced contact policies, and untrusted relays.
-See docs/BLUEPRINT.md for the protocol design.
+See spec/SPEC.md for the normative protocol definition.
 """
 
 from .bodies import (

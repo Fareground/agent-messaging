@@ -243,7 +243,7 @@ def test_poison_message_is_dead_lettered_after_attempt_cap():
 
 
 def test_sqlite_poison_message_is_dead_lettered(tmp_path):
-    from fg_amp.transport.relay import SqliteRelayState, _MAX_DELIVERY_ATTEMPTS
+    from fg_amp.transport.relay import _MAX_DELIVERY_ATTEMPTS, SqliteRelayState
 
     state = SqliteRelayState(str(tmp_path / "relay.db"))
     state.enqueue(_env("amp:key:bob", mid="poison"))

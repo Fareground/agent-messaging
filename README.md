@@ -12,6 +12,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/Fareground/agent-messaging/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Fareground/agent-messaging/ci.yml?branch=main&style=flat-square&label=CI" /></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.11+-3b82f6?style=flat-square" />
   <img alt="Status" src="https://img.shields.io/badge/spec-draft%20amp%2F0.1-f472b6?style=flat-square" />
 </p>
@@ -56,9 +57,8 @@ interactions, or x402 payments.
 > is safe to act on. Applications MUST treat message content as untrusted,
 > prompt-injectable input regardless of a verified sender.
 
-See [docs/BLUEPRINT.md](docs/BLUEPRINT.md) for the full protocol design and
-threat model, and [docs/ANALYSIS.md](docs/ANALYSIS.md) for the cryptographic
-analysis.
+See [`spec/SPEC.md`](spec/SPEC.md) for the normative wire format, and
+[SECURITY.md](SECURITY.md) for the security model and reporting policy.
 
 ## Install
 
@@ -209,9 +209,9 @@ resistance is rate-limiting only; envelope routing metadata (`from` / `to` /
 `session_id`) is cleartext, so a relay sees the social graph; groups are a full
 mesh with no cross-member message ordering; the envelope cap is 1 MiB with no
 chunking (large payloads go out-of-band via `amp.ref/1`); and one identity means
-one key, so multi-device requires sharing a key. The roadmap (MLS for large
-groups, sealed-sender routing, A2A bridge, multi-device, TypeScript
-implementation) is in the [blueprint](docs/BLUEPRINT.md).
+one key, so multi-device requires sharing a key. MLS for large groups,
+sealed-sender routing, an A2A bridge, multi-device, and a TypeScript
+implementation are all roadmap, not shipped.
 
 ## Project Structure
 

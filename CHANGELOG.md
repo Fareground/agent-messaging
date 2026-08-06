@@ -172,9 +172,8 @@ package version and remains `0.1` until the v1.0 freeze.
   chain) **and composed constructions**: seal/open, AgentCard and group-roster
   signing + digest, session-message AAD, and a **real ML-KEM-768 decapsulation
   interop** vector (Python-produced ciphertext decapsulated by Node to the identical
-  shared secret). `docs/ANALYSIS.md` gives a structured security argument, including
-  the either-party-first ratchet variant, and states what a mechanized proof would
-  add. Not yet pinned: a full multi-frame ratchet exchange and one-time prekeys.
+  shared secret). Not yet pinned: a full multi-frame ratchet exchange and one-time
+  prekeys.
 
 ### Post-audit remediation (three independent adversarial re-audits)
 
