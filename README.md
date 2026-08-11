@@ -287,6 +287,7 @@ src/fg_amp/
 ├── transport/    # in-memory / HTTP / relay / WebSocket + hosted relay + wake
 └── testing.py    # in-memory wiring helpers for consumer test suites
 examples/         # runnable end-to-end scripts
+reference/js/     # independent JS implementation (needs Node >= 24.7 for ML-KEM)
 spec/             # protocol spec
 tests/            # test suite incl. golden wire vectors
 ```

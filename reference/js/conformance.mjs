@@ -2,6 +2,9 @@
 // JS reference implementation reproduces every one byte-for-byte. This is the
 // interop proof — two independent implementations agreeing on the wire.
 //
+// Requires Node >= 24.7.0: the ML-KEM vectors use node:crypto's
+// encapsulate/decapsulate one-shots, added in 24.7.0.
+//
 // Run: node reference/js/conformance.mjs
 
 import { readFileSync } from "node:fs";

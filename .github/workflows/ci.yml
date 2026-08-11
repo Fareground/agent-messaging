@@ -18,6 +18,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
+      # The JS reference (reference/js) uses node:crypto encapsulate/decapsulate
+      # for the ML-KEM vectors, added in Node 24.7.0 — Node 22 cannot run it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
       # fg-agent-id is a runtime dependency not yet on PyPI, so it installs
       # from source, pinned to the release tag the pyproject constraint targets.
       # TODO: drop this line and let pip resolve from PyPI once fg-agent-id publishes.

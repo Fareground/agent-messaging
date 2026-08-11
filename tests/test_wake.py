@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 
 import pytest
 
@@ -494,7 +495,20 @@ class TestEmbeddedIpv4:
 
     def test_genuinely_public_ipv6_still_allowed(self):
         WakePolicy().check_address("2606:2800:220:1:248:1893:25c8:1946")
-        WakePolicy().check_address("2002:5db8:d822::")  # 6to4 of a public v4
+
+    def test_6to4_of_public_ipv4_follows_stdlib_classification(self):
+        """6to4 (2002::/16) of a PUBLIC IPv4 (93.184.216.34): older CPython
+        classified such addresses as global, so the guard allowed them; CPython
+        gh-113171 (3.11.9+/3.12.4+) aligned ``ipaddress`` with the IANA
+        special-purpose registry, marking ALL of 2002::/16 non-global — the
+        guard then refuses, which is strictly MORE conservative. Accept
+        whichever the running stdlib says; the guard must never be weaker."""
+        addr = "2002:5db8:d822::"
+        if ipaddress.ip_address(addr).is_global:
+            WakePolicy().check_address(addr)
+        else:
+            with pytest.raises(WakeError, match="non-public"):
+                WakePolicy().check_address(addr)
 
 
 class TestDebounceUnderChurn:
