@@ -246,6 +246,11 @@ class AmpNode:
         self.on_session = on_session
         self.session_store = session_store
         self.sessions: dict[str, Session] = {}
+        # Live on_session callback tasks. Callbacks run as tasks, NOT inline in
+        # the inbound dispatch loop: a callback that awaits session.receive()
+        # (the obvious responder pattern) would otherwise deadlock the very
+        # loop that has to deliver the message it is waiting for.
+        self._callback_tasks: set[asyncio.Task] = set()
         self.groups = GroupManager(self, on_group)
         self._endpoints = endpoints
         # Rotatable agreement prekey ring for forward-secret initiates: initiators
@@ -331,6 +336,12 @@ class AmpNode:
             from ..transport.ws import WsRelayTransport
 
             urls = [relay] if isinstance(relay, str) else list(relay)
+            bad = [u for u in urls if not u.startswith(("http://", "https://", "ws://", "wss://"))]
+            if bad:
+                raise ConfigurationError(
+                    f"relay URL(s) {bad} have no recognized scheme; "
+                    "use http(s):// for HTTP polling or ws(s):// for WebSocket"
+                )
             use_ws = any(u.startswith(("ws://", "wss://")) for u in urls)
             # Relay base URLs are HTTP; the WS transport derives its socket
             # URL from them, so normalize ws(s):// schemes back to http(s).
@@ -344,7 +355,18 @@ class AmpNode:
             transport = InMemoryTransport()
         connect = getattr(transport, "connect", None)
         if connect is not None:
-            await connect(node, poll_interval)  # registers card + serves mailbox
+            try:
+                await connect(node, poll_interval)  # registers card + serves mailbox
+            except BaseException:
+                # Don't leak the transport we just built (poll tasks, aiohttp
+                # client) when the connect itself fails.
+                disconnect = getattr(transport, "disconnect", None)
+                if disconnect is not None:
+                    try:
+                        await disconnect(node)
+                    except Exception:  # noqa: BLE001 — cleanup is best-effort
+                        _log.debug("transport cleanup after failed connect", exc_info=True)
+                raise
         else:
             node.attach(transport)
         return node
@@ -364,9 +386,41 @@ class AmpNode:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         await self.aclose()
 
+    def _spawn_session_callback(self, session: Session) -> None:
+        """Run on_session as a tracked task so a callback may itself await
+        session.receive() without deadlocking the inbound dispatch loop."""
+        if self.on_session is None:
+            return
+        task = asyncio.create_task(self._run_session_callback(session))
+        self._callback_tasks.add(task)
+        task.add_done_callback(self._callback_tasks.discard)
+
+    async def _run_session_callback(self, session: Session) -> None:
+        try:
+            await self.on_session(session)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 — application callback, log don't crash the node
+            _log.exception("on_session callback failed for session %s", session.session_id)
+
     async def aclose(self, reason: str = "node shutting down") -> None:
-        """Gracefully shut the node down: send best-effort close frames for all
-        live sessions, fail any in-flight handshakes/resumes, and detach."""
+        """Gracefully shut the node down: cancel outstanding on_session
+        callbacks, send best-effort close frames for all live sessions, fail
+        any in-flight handshakes/resumes, and take the node off the wire.
+
+        If the attached transport is connection-oriented (exposes
+        ``disconnect``, e.g. the relay transports), it is disconnected for
+        this node — stopping the poll/WS task and, when this was the last
+        connected node, closing the underlying HTTP client. Plain transports
+        are simply detached.
+        """
+        # Cancel callbacks FIRST: one may be blocked in session.receive(),
+        # which closing the session would not unblock.
+        for task in list(self._callback_tasks):
+            task.cancel()
+        if self._callback_tasks:
+            await asyncio.gather(*self._callback_tasks, return_exceptions=True)
+        self._callback_tasks.clear()
         for session in list(self.sessions.values()):
             if session.state is SessionState.ESTABLISHED:
                 try:
@@ -381,7 +435,16 @@ class AmpNode:
                 presume.future.set_exception(SessionError("node closed"))
         self._pending.clear()
         self._pending_resumes.clear()
-        self.detach()
+        transport = self._transport
+        disconnect = getattr(transport, "disconnect", None)
+        if disconnect is not None:
+            try:
+                await disconnect(self)  # also detaches
+            except Exception:  # noqa: BLE001 — shutdown is best-effort
+                _log.debug("transport disconnect failed during aclose", exc_info=True)
+                self.detach()
+        else:
+            self.detach()
 
     @staticmethod
     def _prune_expired(cache: OrderedDict[str, float], now_ts: float) -> None:
@@ -757,8 +820,7 @@ class AmpNode:
         await self._require_transport().deliver(response)
         if await self.groups.claim_inbound_session(session):
             return
-        if self.on_session is not None:
-            await self.on_session(session)
+        self._spawn_session_callback(session)
 
     def _handle_accept(self, envelope: Envelope) -> None:
         # Consume the pending entry so a duplicated/replayed accept can't rebuild
@@ -967,8 +1029,7 @@ class AmpNode:
             EnvelopeType.RESUME_ACCEPT, record.peer_card, record.session_id, accept
         )
         await self._require_transport().deliver(response)
-        if self.on_session is not None:
-            await self.on_session(session)
+        self._spawn_session_callback(session)
 
     def _handle_resume_accept(self, envelope: Envelope) -> None:
         # Peek (not pop) here: a stale-nonce replay of a *prior* resume attempt

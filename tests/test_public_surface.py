@@ -1,6 +1,8 @@
 """The documented public surface: top-level exports, lifecycle ergonomics,
 and the fg_amp.testing helpers consumers build their own tests on."""
 
+import asyncio
+
 import pytest
 
 from fg_amp import (
@@ -148,5 +150,107 @@ async def test_amp_pair_round_trip_both_directions():
     # either side may initiate — both run an open policy by default
     reverse = await b.initiate(a.card, purpose="reverse")
     assert reverse.state is SessionState.ESTABLISHED
+    await a.aclose()
+    await b.aclose()
+
+
+# -- on_session runs as a task, not inline in the dispatch loop ---------------
+
+
+async def test_on_session_responder_can_receive_without_deadlock():
+    """The obvious responder pattern — await receive() inside on_session —
+    must complete a full round trip instead of deadlocking dispatch."""
+
+    async def respond(session: Session):
+        message = await session.receive()
+        await session.send_text(f"pong ({message.payload.content})")
+
+    a, b = await amp_pair(on_session=respond)
+    session = await a.initiate(b.card, purpose="hello")
+    await session.send_text("ping")
+    reply = await asyncio.wait_for(session.receive(), timeout=2)
+    assert reply.payload.content == "pong (ping)"
+    await a.aclose()
+    await b.aclose()
+
+
+async def test_aclose_cancels_stuck_on_session_callback():
+    started = asyncio.Event()
+
+    async def hang(session: Session):
+        started.set()
+        await session.receive()  # never satisfied — aclose must cancel us
+
+    a, b = await amp_pair(on_session=hang)
+    await a.initiate(b.card, purpose="hang")
+    await asyncio.wait_for(started.wait(), timeout=2)
+    assert b._callback_tasks
+    await asyncio.wait_for(b.aclose(), timeout=2)  # must not hang on the callback
+    assert not b._callback_tasks
+    await a.aclose()
+
+
+async def test_on_session_callback_exception_is_logged_not_fatal(caplog):
+    async def boom(session: Session):
+        raise RuntimeError("callback bug")
+
+    a, b = await amp_pair(on_session=boom)
+    session = await a.initiate(b.card, purpose="boom")
+    await asyncio.sleep(0)  # let the callback task run
+    with caplog.at_level("ERROR", logger="fg_amp.node"):
+        await asyncio.sleep(0.05)
+        await session.send_text("still alive")  # node keeps working
+    assert any("on_session callback failed" in r.message for r in caplog.records)
+    await a.aclose()
+    await b.aclose()
+
+
+# -- aclose disconnects connection-oriented transports ------------------------
+
+
+async def test_aclose_disconnects_relay_style_transport():
+    calls: list[str] = []
+
+    class FakeRelay(InMemoryTransport):
+        async def connect(self, node, poll_interval=1.0):
+            calls.append("connect")
+            node.attach(self)
+
+        async def disconnect(self, node):
+            calls.append("disconnect")
+            node.detach()
+
+    node = await AmpNode.create(AgentIdentity.generate("n"), transport=FakeRelay())
+    await node.aclose()
+    assert calls == ["connect", "disconnect"]
+    assert node._transport is None
+
+
+async def test_create_cleans_up_when_connect_fails():
+    calls: list[str] = []
+
+    class BrokenRelay(InMemoryTransport):
+        async def connect(self, node, poll_interval=1.0):
+            calls.append("connect")
+            raise ConnectionError("relay unreachable")
+
+        async def disconnect(self, node):
+            calls.append("disconnect")
+
+    with pytest.raises(ConnectionError):
+        await AmpNode.create(AgentIdentity.generate("n"), transport=BrokenRelay())
+    assert calls == ["connect", "disconnect"]
+
+
+async def test_create_rejects_unrecognized_relay_scheme():
+    with pytest.raises(ConfigurationError, match="scheme"):
+        await AmpNode.create(AgentIdentity.generate("n"), relay="not-a-url")
+
+
+async def test_receive_timeout_names_session_and_timeout():
+    a, b = await amp_pair()
+    session = await a.initiate(b.card, purpose="quiet")
+    with pytest.raises(TimeoutError, match=f"{session.session_id}.*0.05"):
+        await session.receive(timeout=0.05)
     await a.aclose()
     await b.aclose()

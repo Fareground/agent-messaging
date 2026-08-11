@@ -13,15 +13,15 @@ from fg_amp.testing import amp_pair
 
 
 async def main() -> None:
-    a, b = await amp_pair()
+    async def respond(session) -> None:  # b's side: runs as its own task, so receiving is safe
+        message = await session.receive()
+        print("b received:", message.payload.content)
+        await session.send_text("pong")
+
+    a, b = await amp_pair(on_session=respond)
 
     session = await a.initiate(b.card, purpose="hello")
     await session.send_text("ping")
-
-    echo = b.sessions[session.session_id]  # b's side of the same session
-    print("b received:", (await echo.receive(timeout=1)).payload.content)
-
-    await echo.send_text("pong")
     print("a received:", (await session.receive(timeout=1)).payload.content)
 
     await a.aclose()

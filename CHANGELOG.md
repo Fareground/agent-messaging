@@ -22,6 +22,11 @@ package version and remains `0.1` until the v1.0 freeze.
 - **`AmpNode` async context manager.** `async with AmpNode(...) as node:`
   calls `aclose()` on exit (close frames for live sessions, pending
   handshakes/resumes failed, transport detached).
+- Relay URLs with an unrecognized scheme now fail `AmpNode.create` immediately
+  with a clear `ConfigurationError` instead of surfacing later as a transport
+  failure.
+- `Session.receive(timeout=...)` now raises a `TimeoutError` naming the
+  session id and the timeout value.
 - `examples/hello_world.py`; README reworked as an API ladder (one-liners →
   full node/session surface → wire internals) with identity persistence via
   fg-agent-id 0.2's `AgentIdentity.load_or_create`.
@@ -106,6 +111,26 @@ package version and remains `0.1` until the v1.0 freeze.
   they negotiate at handshake like any other payload type. New
   `Payload.body()` / `Session.send_body()` helpers, `BodyError` hierarchy,
   and `vectors.typed_bodies` golden examples.
+
+### Fixed
+
+- **`on_session` deadlock.** The inbound dispatch loop awaited the `on_session`
+  callback inline, so a callback that itself awaited `session.receive()` — the
+  obvious responder pattern — deadlocked the loop that had to deliver the
+  message. Callbacks now run as tracked tasks; exceptions are logged, and
+  `aclose()` cancels outstanding callbacks before closing sessions.
+- **`aclose()` left relay transports running.** It only detached, leaving the
+  poll/WS task and the aiohttp client alive ("Unclosed client session" on every
+  clean relay exit). `aclose` now calls `disconnect(node)` on any attached
+  connection-oriented transport (one exposing `disconnect`), whether `create()`
+  wired it or the caller connected it — per-node disconnect is idempotent and
+  only closes the shared HTTP client when the last node leaves.
+- **`AmpNode.create` leaked its transport when `connect()` failed** — the
+  freshly built transport is now disconnected before the error re-raises.
+- `examples/networked_relay.py` imported `httpx`, which is not in the `[http]`
+  extra; it now serves the relay app with uvicorn on a real local port and
+  uses the default aiohttp client, so it runs on a documented install.
+- CI installs `fg-agent-id` pinned to the `v0.2.0` tag instead of git main.
 
 ### Changed
 

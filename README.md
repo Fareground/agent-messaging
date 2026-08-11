@@ -93,12 +93,13 @@ import asyncio
 from fg_amp.testing import amp_pair
 
 async def main():
-    a, b = await amp_pair()                                # two connected in-process nodes
+    async def respond(session):        # runs as its own task — receiving here is safe
+        message = await session.receive()
+        await session.send_text(f"pong ({message.payload.content})")
+
+    a, b = await amp_pair(on_session=respond)   # two connected in-process nodes
     session = await a.initiate(b.card, purpose="hello")
     await session.send_text("ping")
-    echo = b.sessions[session.session_id]                  # b's side of the same session
-    print((await echo.receive(timeout=1)).payload.content)
-    await echo.send_text("pong")
     print((await session.receive(timeout=1)).payload.content)
 
 asyncio.run(main())

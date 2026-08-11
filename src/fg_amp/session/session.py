@@ -798,7 +798,12 @@ class Session:
         if timeout is None:
             message = await self._inbox.get()
         else:
-            message = await asyncio.wait_for(self._inbox.get(), timeout)
+            try:
+                message = await asyncio.wait_for(self._inbox.get(), timeout)
+            except TimeoutError:
+                raise TimeoutError(
+                    f"no message received on session {self.session_id} within {timeout}s"
+                ) from None
         await self._drain_held()
         return message
 
