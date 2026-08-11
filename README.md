@@ -13,6 +13,7 @@
 
 <p align="center">
   <a href="https://github.com/Fareground/agent-messaging/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Fareground/agent-messaging/ci.yml?branch=main&style=flat-square&label=CI" /></a>
+  <a href="https://pypi.org/project/fg-amp/"><img alt="PyPI" src="https://img.shields.io/pypi/v/fg-amp?style=flat-square" /></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.11+-3b82f6?style=flat-square" />
   <img alt="Status" src="https://img.shields.io/badge/spec-draft%20amp%2F0.1-f472b6?style=flat-square" />
 </p>
@@ -65,14 +66,6 @@ See [`spec/SPEC.md`](spec/SPEC.md) for the normative wire format, and
 ```bash
 pip install fg-amp          # core (no web dependencies)
 pip install "fg-amp[http]"  # + HTTP transport (FastAPI/aiohttp)
-```
-
-> PyPI availability is post-release; until `fg-amp` and its `fg-agent-id`
-> dependency are published, install both from GitHub:
-
-```bash
-pip install "fg-agent-id @ git+https://github.com/Fareground/agent-id.git" \
-            "fg-amp[http] @ git+https://github.com/Fareground/agent-messaging.git"
 ```
 
 > **Package naming:** the installable distribution is `fg-amp` and the import
