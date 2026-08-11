@@ -28,9 +28,10 @@ import os
 import time
 import uuid
 from collections import OrderedDict
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 
@@ -59,7 +60,7 @@ from ..identity import AgentIdentity
 from ..identity.card import AgentCard
 from ..identity.delegation import RevocationRegistry
 from ..identity.keys import base58_encode
-from ..policy.policy import ApprovalFn, ContactPolicy, Decision, PolicyEngine
+from ..policy.policy import ApprovalFn, ContactPolicy, Decision, PolicyEngine, PolicyMode
 from ..session.group import GROUP_PAYLOAD_TYPES, GroupSession
 from ..session.handshake import (
     HandshakeAccept,
@@ -282,6 +283,71 @@ class AmpNode:
     @property
     def card(self) -> AgentCard:
         return self._card
+
+    @classmethod
+    async def create(
+        cls,
+        identity: AgentIdentity,
+        *,
+        relay: str | Sequence[str] | None = None,
+        transport: Transport | None = None,
+        poll_interval: float = 1.0,
+        policy: ContactPolicy | None = None,
+        **kwargs: Any,
+    ) -> AmpNode:
+        """Construct a node and put it on the wire in one call.
+
+        The transport comes from whichever argument is given (at most one):
+
+        - ``relay=`` — one or more relay URLs. ``http(s)://`` speaks HTTP
+          (``RelayTransport``); ``ws(s)://`` speaks WebSocket with HTTP
+          fallback (``WsRelayTransport``). The card is registered and the
+          mailbox served immediately.
+        - ``transport=`` — an explicit ``Transport`` instance (attached; relay
+          transports are also connected).
+        - neither — a fresh private ``InMemoryTransport``, useful alone only
+          for tests; to wire several in-process nodes together, share one
+          transport or use ``fg_amp.testing.amp_pair``.
+
+        Unlike the bare constructor (which historically defaults to
+        ``ContactPolicy.open()``), ``create`` defaults to a **closed** policy:
+        the node can initiate outward but accepts no inbound initiations until
+        you opt in — pass ``policy=ContactPolicy.open()`` (or an allowlist /
+        credentialed policy) to be reachable.
+
+        Remaining keyword arguments go to ``AmpNode(...)`` unchanged. The
+        returned node works with ``async with``.
+        """
+        if relay is not None and transport is not None:
+            raise ConfigurationError("pass either relay= or transport=, not both")
+        node = cls(
+            identity=identity,
+            policy=policy or ContactPolicy(mode=PolicyMode.CLOSED),
+            **kwargs,
+        )
+        if relay is not None:
+            # Imported here: transport.relay/.ws sit above the node layer.
+            from ..transport.relay import RelayTransport
+            from ..transport.ws import WsRelayTransport
+
+            urls = [relay] if isinstance(relay, str) else list(relay)
+            use_ws = any(u.startswith(("ws://", "wss://")) for u in urls)
+            # Relay base URLs are HTTP; the WS transport derives its socket
+            # URL from them, so normalize ws(s):// schemes back to http(s).
+            bases = [
+                u.replace("ws://", "http://", 1).replace("wss://", "https://", 1) for u in urls
+            ]
+            transport = WsRelayTransport(bases) if use_ws else RelayTransport(bases)
+        if transport is None:
+            from ..transport.memory import InMemoryTransport
+
+            transport = InMemoryTransport()
+        connect = getattr(transport, "connect", None)
+        if connect is not None:
+            await connect(node, poll_interval)  # registers card + serves mailbox
+        else:
+            node.attach(transport)
+        return node
 
     def attach(self, transport: Transport) -> None:
         self._transport = transport

@@ -82,6 +82,48 @@ pip install "fg-agent-id @ git+https://github.com/Fareground/agent-id.git" \
 
 ## Usage
 
+The API is a ladder: one-liners for the common cases, the full `AmpNode` /
+`Session` surface when you need control, and the wire protocol underneath
+([Protocol / Concepts](#protocol--concepts), [`spec/SPEC.md`](spec/SPEC.md)).
+
+### Hello world
+
+```python
+import asyncio
+from fg_amp.testing import amp_pair
+
+async def main():
+    a, b = await amp_pair()                                # two connected in-process nodes
+    session = await a.initiate(b.card, purpose="hello")
+    await session.send_text("ping")
+    echo = b.sessions[session.session_id]                  # b's side of the same session
+    print((await echo.receive(timeout=1)).payload.content)
+    await echo.send_text("pong")
+    print((await session.receive(timeout=1)).payload.content)
+
+asyncio.run(main())
+```
+
+### One call to the network
+
+`AmpNode.create` collapses construct → attach → connect. Give it a relay URL
+(`http(s)://` for HTTP polling, `ws(s)://` for WebSocket push with HTTP
+fallback), an explicit `Transport`, or nothing for a private in-memory
+transport. Unlike the bare constructor, `create` defaults to a **closed**
+policy — the node can call out but accepts no inbound initiations until you
+opt in with an explicit policy.
+
+```python
+from fg_amp import AgentIdentity, AmpNode, ContactPolicy
+
+identity = AgentIdentity.load_or_create("agent-keys.fgid")   # persisted keypair
+async with await AmpNode.create(
+    identity, relay="wss://relay.example", policy=ContactPolicy.open()
+) as node:
+    session = await node.initiate(peer_card, purpose="hello over the relay")
+    await session.send_text("ping")
+```
+
 ### Two participants, one encrypted session
 
 ```python
@@ -189,23 +231,24 @@ The poll loop stays the source of truth, so a dropped ping costs latency, never
 correctness. End to end — mail for a sleeping agent → relay ping → receiver →
 connect → the agent has its mail — is covered by `tests/test_wake.py`.
 
-More runnable examples live in [`examples/`](examples): `negotiation.py`,
-`group_chat.py`, and `networked_relay.py`.
+More runnable examples live in [`examples/`](examples): `hello_world.py`,
+`negotiation.py`, `group_chat.py`, and `networked_relay.py`.
 
 ### Testing your integration
 
 `fg_amp.testing` wires nodes over an in-process transport, so your unit tests
-need no relay, no network, and no optional extras. `AmpNode` is also an async
-context manager — sessions close and the transport detaches on exit.
+need no relay, no network, and no optional extras: `amp_pair()` returns two
+connected nodes (both open-policy, the right default for a test double), and
+`connect(*nodes)` shares one in-memory transport among nodes you built
+yourself. `AmpNode` is also an async context manager — sessions close and the
+transport detaches on exit.
 
 ```python
-from fg_amp import AgentIdentity, AmpNode, ContactPolicy
-from fg_amp.testing import connect
+from fg_amp.testing import amp_pair
 
 async def test_my_agent_talks_to_a_peer():
-    peer = AmpNode(identity=AgentIdentity.generate("peer"), policy=ContactPolicy.open())
-    async with AmpNode(identity=AgentIdentity.generate("mine")) as mine:
-        connect(mine, peer)
+    mine, peer = await amp_pair()
+    async with mine:
         session = await mine.initiate(peer.card, purpose="test")
         await session.send_text("ping")
 ```

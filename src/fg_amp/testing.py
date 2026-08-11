@@ -15,10 +15,14 @@ optional dependencies:
 
 from __future__ import annotations
 
+from typing import Any
+
+from .identity import AgentIdentity
 from .node import AmpNode
+from .policy import ContactPolicy
 from .transport import InMemoryTransport
 
-__all__ = ["InMemoryTransport", "connect"]
+__all__ = ["InMemoryTransport", "amp_pair", "connect"]
 
 
 def connect(*nodes: AmpNode) -> InMemoryTransport:
@@ -32,3 +36,29 @@ def connect(*nodes: AmpNode) -> InMemoryTransport:
     for node in nodes:
         node.attach(transport)
     return transport
+
+
+async def amp_pair(
+    names: tuple[str, str] = ("a", "b"),
+    *,
+    policy: ContactPolicy | None = None,
+    **kwargs: Any,
+) -> tuple[AmpNode, AmpNode]:
+    """Two fresh nodes wired over one in-memory transport, ready to talk.
+
+    Both run ``ContactPolicy.open()`` by default so either side can initiate —
+    the right default for a test double, and exactly why this helper lives in
+    ``fg_amp.testing`` rather than shipping as a production constructor
+    (``AmpNode.create`` defaults closed). Extra keyword arguments go to both
+    ``AmpNode`` constructors.
+
+        a, b = await amp_pair()
+        session = await a.initiate(b.card, purpose="hello")
+        await session.send_text("ping")
+        echo = b.sessions[session.session_id]   # b's side of the same session
+    """
+    policy = policy or ContactPolicy.open()
+    a = AmpNode(identity=AgentIdentity.generate(names[0]), policy=policy, **kwargs)
+    b = AmpNode(identity=AgentIdentity.generate(names[1]), policy=policy, **kwargs)
+    connect(a, b)
+    return a, b

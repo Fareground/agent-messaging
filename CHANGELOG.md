@@ -8,13 +8,23 @@ package version and remains `0.1` until the v1.0 freeze.
 
 ### Added
 
+- **`AmpNode.create` — construct + attach + connect in one call.** Async
+  classmethod: `relay=` takes one or more relay URLs (`http(s)://` → HTTP
+  polling `RelayTransport`, `ws(s)://` → `WsRelayTransport` with HTTP
+  fallback), `transport=` takes an explicit instance, neither builds a private
+  in-memory transport. Deliberately defaults to a **closed** contact policy
+  (outbound-only) rather than the bare constructor's historical open default —
+  reachability is opt-in via `policy=`.
 - **`fg_amp.testing`.** Consumer-facing test helpers: re-exports
-  `InMemoryTransport` and adds `connect(*nodes)`, which attaches every node to
-  one shared in-process transport — the same wiring the package's own test
-  suite uses.
+  `InMemoryTransport`, adds `connect(*nodes)` (attach every node to one shared
+  in-process transport — the same wiring the package's own test suite uses)
+  and `amp_pair()` (two connected open-policy nodes, ready to talk).
 - **`AmpNode` async context manager.** `async with AmpNode(...) as node:`
   calls `aclose()` on exit (close frames for live sessions, pending
   handshakes/resumes failed, transport detached).
+- `examples/hello_world.py`; README reworked as an API ladder (one-liners →
+  full node/session surface → wire internals) with identity persistence via
+  fg-agent-id 0.2's `AgentIdentity.load_or_create`.
 - `PendingInitiation` is now re-exported from `fg_amp.node`, and the identity
   key types `KeyPair` / `PublicKeys` are exported at the top level.
 - Release workflow (`.github/workflows/release.yml`): tag-driven build, wheel
