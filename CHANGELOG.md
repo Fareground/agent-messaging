@@ -4,7 +4,7 @@ All notable changes to `fg-amp`. Format loosely follows Keep a
 Changelog; the wire protocol version (`amp`) is tracked separately from the
 package version and remains `0.1` until the v1.0 freeze.
 
-## [Unreleased]
+## [0.12.1] — 2026-08-11
 
 ### Fixed
 
