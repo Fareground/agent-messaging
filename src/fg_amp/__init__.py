@@ -57,11 +57,13 @@ from .identity import (
     AgentIdentity,
     Delegation,
     DelegationChain,
+    KeyPair,
     KeyRevocation,
     OwnerIdentity,
     ParticipantCard,
     ParticipantIdentity,
     ParticipantKind,
+    PublicKeys,
     Revocation,
     RevocationRegistry,
     address_to_did,
@@ -70,8 +72,7 @@ from .identity import (
     resolve,
     signing_key_from_did,
 )
-from .node import AmpNode
-from .node.node import PendingInitiation
+from .node import AmpNode, PendingInitiation
 from .policy import ContactPolicy, PolicyMode
 from .session import (
     FileSessionStore,
@@ -161,7 +162,9 @@ __all__ = [
     "InMemorySessionStore",
     "InMemoryTransport",
     "PendingInitiation",
+    "KeyPair",
     "KeyRevocation",
+    "PublicKeys",
     "OwnerIdentity",
     "ParticipantCard",
     "ParticipantIdentity",

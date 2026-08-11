@@ -292,6 +292,12 @@ class AmpNode:
             self._transport.unbind(self.address)
             self._transport = None
 
+    async def __aenter__(self) -> AmpNode:
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self.aclose()
+
     async def aclose(self, reason: str = "node shutting down") -> None:
         """Gracefully shut the node down: send best-effort close frames for all
         live sessions, fail any in-flight handshakes/resumes, and detach."""

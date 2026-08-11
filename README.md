@@ -63,11 +63,16 @@ See [`spec/SPEC.md`](spec/SPEC.md) for the normative wire format, and
 ## Install
 
 ```bash
-# fg-agent-id is a GitHub-only sibling, so install both together
+pip install fg-amp          # core (no web dependencies)
+pip install "fg-amp[http]"  # + HTTP transport (FastAPI/aiohttp)
+```
+
+> PyPI availability is post-release; until `fg-amp` and its `fg-agent-id`
+> dependency are published, install both from GitHub:
+
+```bash
 pip install "fg-agent-id @ git+https://github.com/Fareground/agent-id.git" \
-            "fg-amp @ git+https://github.com/Fareground/agent-messaging.git"       # core (no web dependencies)
-pip install "fg-agent-id @ git+https://github.com/Fareground/agent-id.git" \
-            "fg-amp[http] @ git+https://github.com/Fareground/agent-messaging.git"  # + HTTP transport (FastAPI/aiohttp)
+            "fg-amp[http] @ git+https://github.com/Fareground/agent-messaging.git"
 ```
 
 > **Package naming:** the installable distribution is `fg-amp` and the import
@@ -135,8 +140,7 @@ same end-to-end guarantees, plus membership invite/leave events.
 Run a relay anywhere; it only ever sees ciphertext.
 
 ```bash
-pip install "fg-agent-id @ git+https://github.com/Fareground/agent-id.git" \
-            "fg-amp[http] @ git+https://github.com/Fareground/agent-messaging.git" && amp-relay --port 8404
+pip install "fg-amp[http]" && amp-relay --port 8404
 ```
 
 ```python
@@ -188,6 +192,24 @@ connect → the agent has its mail — is covered by `tests/test_wake.py`.
 More runnable examples live in [`examples/`](examples): `negotiation.py`,
 `group_chat.py`, and `networked_relay.py`.
 
+### Testing your integration
+
+`fg_amp.testing` wires nodes over an in-process transport, so your unit tests
+need no relay, no network, and no optional extras. `AmpNode` is also an async
+context manager — sessions close and the transport detaches on exit.
+
+```python
+from fg_amp import AgentIdentity, AmpNode, ContactPolicy
+from fg_amp.testing import connect
+
+async def test_my_agent_talks_to_a_peer():
+    peer = AmpNode(identity=AgentIdentity.generate("peer"), policy=ContactPolicy.open())
+    async with AmpNode(identity=AgentIdentity.generate("mine")) as mine:
+        connect(mine, peer)
+        session = await mine.initiate(peer.card, purpose="test")
+        await session.send_text("ping")
+```
+
 ## Protocol / Concepts
 
 - **Any participant.** Endpoints carry a signed `kind` (`agent` / `human` /
@@ -225,12 +247,21 @@ src/fg_amp/
 ├── policy/       # code-enforced ContactPolicy
 ├── bodies/       # typed message bodies (task, mcp, payment, receipt, ref, claim)
 ├── node/         # AmpNode — attach transports, initiate, groups
-└── transport/    # in-memory / HTTP / relay / WebSocket + hosted relay + wake
-docs/             # BLUEPRINT (design + threat model), ANALYSIS (crypto)
+├── transport/    # in-memory / HTTP / relay / WebSocket + hosted relay + wake
+└── testing.py    # in-memory wiring helpers for consumer test suites
 examples/         # runnable end-to-end scripts
 spec/             # protocol spec
-tests/            # full suite incl. golden wire vectors
+tests/            # test suite incl. golden wire vectors
 ```
+
+### Supported API
+
+The supported public surface is what `fg_amp` exports at the top level (plus
+the `fg_amp.testing` helpers above). Submodule paths like
+`fg_amp.session.session` are internal layout and may move between releases —
+import from `fg_amp` directly. The wire protocol version (`amp/0.1`) is
+versioned separately from the library: package releases do not change
+bytes-on-the-wire unless the protocol version bumps.
 
 ### Distribution name
 

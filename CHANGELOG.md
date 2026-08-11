@@ -4,10 +4,21 @@ All notable changes to `fg-amp`. Format loosely follows Keep a
 Changelog; the wire protocol version (`amp`) is tracked separately from the
 package version and remains `0.1` until the v1.0 freeze.
 
-## [Unreleased]
+## [0.12.0] — 2026-08-11
 
 ### Added
 
+- **`fg_amp.testing`.** Consumer-facing test helpers: re-exports
+  `InMemoryTransport` and adds `connect(*nodes)`, which attaches every node to
+  one shared in-process transport — the same wiring the package's own test
+  suite uses.
+- **`AmpNode` async context manager.** `async with AmpNode(...) as node:`
+  calls `aclose()` on exit (close frames for live sessions, pending
+  handshakes/resumes failed, transport detached).
+- `PendingInitiation` is now re-exported from `fg_amp.node`, and the identity
+  key types `KeyPair` / `PublicKeys` are exported at the top level.
+- Release workflow (`.github/workflows/release.yml`): tag-driven build, wheel
+  smoke test in a clean environment, PyPI trusted publishing.
 - **Witnessed session posture (SPEC §7.1) — `amp.posture.witnessed-v1`.** A
   negotiated middle ground between sealed E2E and auditability: both parties
   name the SAME witness (address + X25519 key) inside the signed, sealed
@@ -88,6 +99,15 @@ package version and remains `0.1` until the v1.0 freeze.
 
 ### Changed
 
+- Pinned the identity dependency to `fg-agent-id>=0.2,<0.3` ahead of both
+  packages' first PyPI publish (was an unresolvable `>=0.1`). fg-agent-id 0.2
+  stamps agent cards `amp: "0.2"` by default (the card protocol version is the
+  identity package's domain), so the `agent_card` golden vector in
+  `spec/vectors.json` was regenerated — AMP's own envelope wire format
+  (`amp/0.1`) is unchanged.
+- README: PyPI install is now primary (git install kept as the pre-publish
+  fallback), added "Testing your integration" and "Supported API" sections,
+  removed stale references to the deleted `docs/` directory.
 - **Renamed to `fg-amp`** (was `fareground-amp`); import path is now `fg_amp`.
   Aligns with the other Fareground `fg-*` packages. The sibling identity package
   is now `fg-agent-id` (import `fg_agent_id`).
