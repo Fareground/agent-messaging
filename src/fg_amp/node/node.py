@@ -178,11 +178,18 @@ class PendingInitiation:
                 remaining = deadline.expires_at - time.monotonic()
                 if remaining <= 0:
                     self._node.forget_expired_initiations()
-                return await asyncio.wait_for(
+                session = await asyncio.wait_for(
                     asyncio.shield(self._future), max(remaining, 0.0)
                 )
-            return await asyncio.shield(self._future)
-        return await asyncio.wait_for(asyncio.shield(self._future), timeout)
+            else:
+                session = await asyncio.shield(self._future)
+        else:
+            session = await asyncio.wait_for(asyncio.shield(self._future), timeout)
+        # Same ordering contract as AmpNode.initiate: yield once so the
+        # acceptor's on_session task (queued before the accept was sent) has
+        # started before we hand the session back.
+        await asyncio.sleep(0)
+        return session
 
     def cancel(self) -> None:
         """Give up on this handshake and release its pending state."""
@@ -201,7 +208,21 @@ class _PendingResume:
 
 
 class AmpNode:
-    """An agent's messaging endpoint: address, inbox, policy, sessions, groups."""
+    """An agent's messaging endpoint: address, inbox, policy, sessions, groups.
+
+    **on_session ordering contract.** The ``on_session`` callback runs as its
+    own task, so it may freely await ``session.receive()`` without deadlocking
+    inbound dispatch. What a caller may assume: by the time the *initiating*
+    peer's ``initiate()`` / ``PendingInitiation.wait()`` / ``resume()``
+    returns, the acceptor's callback has **started** — executed up to its
+    first suspension point. It has NOT necessarily completed; anything after
+    the callback's first ``await`` is unordered relative to the initiator's
+    next step. This holds deterministically (not by racing): the callback task
+    is queued before the accept frame is sent, the initiator cannot proceed
+    before that accept is processed, and the initiator yields to the event
+    loop once before returning — asyncio's documented FIFO callback ordering
+    then guarantees the earlier-queued task ran first.
+    """
 
     def __init__(
         self,
@@ -388,7 +409,11 @@ class AmpNode:
 
     def _spawn_session_callback(self, session: Session) -> None:
         """Run on_session as a tracked task so a callback may itself await
-        session.receive() without deadlocking the inbound dispatch loop."""
+        session.receive() without deadlocking the inbound dispatch loop.
+
+        Must be called BEFORE the accept frame is delivered — that ordering,
+        plus the single yield in initiate()/wait()/resume(), is what makes the
+        class-level on_session ordering contract deterministic."""
         if self.on_session is None:
             return
         task = asyncio.create_task(self._run_session_callback(session))
@@ -606,9 +631,17 @@ class AmpNode:
 
         try:
             await transport.deliver(envelope)
-            return await asyncio.wait_for(future, timeout)
+            session = await asyncio.wait_for(future, timeout)
         finally:
             self._pending.pop(session_id, None)
+        # Over an in-process transport the whole handshake can unwind
+        # synchronously, and on 3.12+ wait_for on an already-done future
+        # returns without touching the event loop — so the acceptor's spawned
+        # on_session task would not have run yet. One explicit yield restores
+        # the guarantee callers have always had: by the time initiate()
+        # returns, the peer's on_session callback has at least started.
+        await asyncio.sleep(0)
+        return session
 
     async def create_group(
         self,
@@ -671,9 +704,11 @@ class AmpNode:
         )
         try:
             await transport.deliver(envelope)
-            return await asyncio.wait_for(future, timeout)
+            session = await asyncio.wait_for(future, timeout)
         finally:
             self._pending_resumes.pop(session_id, None)
+        await asyncio.sleep(0)  # let the peer's on_session task start — see initiate()
+        return session
 
     # -- inbound routing ------------------------------------------------------
 
@@ -817,10 +852,13 @@ class AmpNode:
         response = self._sealed_envelope(
             EnvelopeType.HANDSHAKE_ACCEPT, initiate.card, initiate.session_id, accept
         )
+        # Spawn the on_session task BEFORE delivering the accept: the task is
+        # then queued ahead of the initiator's wakeup, so the callback's first
+        # synchronous segment always runs before the peer's initiate() returns
+        # — the ordering the inline call used to guarantee.
+        if not await self.groups.claim_inbound_session(session):
+            self._spawn_session_callback(session)
         await self._require_transport().deliver(response)
-        if await self.groups.claim_inbound_session(session):
-            return
-        self._spawn_session_callback(session)
 
     def _handle_accept(self, envelope: Envelope) -> None:
         # Consume the pending entry so a duplicated/replayed accept can't rebuild
@@ -1028,8 +1066,9 @@ class AmpNode:
         response = self._sealed_envelope(
             EnvelopeType.RESUME_ACCEPT, record.peer_card, record.session_id, accept
         )
-        await self._require_transport().deliver(response)
+        # Spawned before deliver — see _handle_initiate for the ordering rationale.
         self._spawn_session_callback(session)
+        await self._require_transport().deliver(response)
 
     def _handle_resume_accept(self, envelope: Envelope) -> None:
         # Peek (not pop) here: a stale-nonce replay of a *prior* resume attempt

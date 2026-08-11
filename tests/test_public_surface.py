@@ -205,6 +205,26 @@ async def test_on_session_callback_exception_is_logged_not_fatal(caplog):
     await b.aclose()
 
 
+async def test_on_session_started_before_initiate_returns():
+    """Pins the documented ordering contract: the acceptor's on_session
+    callback has run up to its first suspension point by the time the
+    initiator's initiate() returns. Catches the 0.12.0 regression where the
+    task-spawned callback had not run yet on Python 3.12+ (whose wait_for
+    returns an already-done future without yielding to the event loop)."""
+    order: list[str] = []
+
+    async def on_session(session: Session):
+        order.append("callback started")   # first synchronous segment
+        await session.receive()            # first suspension point
+        order.append("callback resumed")
+
+    a, b = await amp_pair(on_session=on_session)
+    await a.initiate(b.card, purpose="ordering")
+    assert order == ["callback started"]  # started, and ONLY started
+    await a.aclose()
+    await b.aclose()
+
+
 # -- aclose disconnects connection-oriented transports ------------------------
 
 

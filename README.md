@@ -90,6 +90,9 @@ async def main():
         message = await session.receive()
         await session.send_text(f"pong ({message.payload.content})")
 
+    # Ordering contract: when initiate() returns on the other side, respond()
+    # has STARTED (run to its first await) — not necessarily completed.
+
     a, b = await amp_pair(on_session=respond)   # two connected in-process nodes
     session = await a.initiate(b.card, purpose="hello")
     await session.send_text("ping")

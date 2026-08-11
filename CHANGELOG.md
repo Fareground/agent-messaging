@@ -4,6 +4,32 @@ All notable changes to `fg-amp`. Format loosely follows Keep a
 Changelog; the wire protocol version (`amp`) is tracked separately from the
 package version and remains `0.1` until the v1.0 freeze.
 
+## [Unreleased]
+
+### Fixed
+
+- **on_session ordering regression (0.12.0).** Making `on_session` a spawned
+  task fixed the receive-deadlock but silently dropped the ordering callers
+  relied on: on Python 3.12+ (whose `wait_for` returns an already-done future
+  without yielding to the event loop) `initiate()` could return before the
+  acceptor's callback had run at all. Restored deterministically: the callback
+  task is queued before the accept frame is sent, and
+  `initiate()`/`PendingInitiation.wait()`/`resume()` yield to the loop once
+  before returning, so asyncio's FIFO callback ordering guarantees the
+  callback has **started** (run to its first suspension point) by the time the
+  initiator proceeds. The contract is documented on `AmpNode` and pinned by a
+  regression test.
+- `tests/test_relay.py::test_no_wake_ping_when_the_recipient_is_polling`
+  raced the poll task's first long-poll registration (by-design wake when mail
+  arrives with nobody waiting); the test now syncs on the relay's waiter state
+  before sending.
+- CI pins setup-node to Node 24: the JS reference conformance needs
+  `node:crypto` `encapsulate`/`decapsulate` (ML-KEM one-shots), present from
+  Node 24.7.0 — documented in `reference/js/conformance.mjs` and the README.
+- The 6to4 SSRF test now follows the running stdlib's classification of
+  2002::/16 (CPython gh-113171 marks it non-global from 3.11.9+/3.12.4+; the
+  guard is strictly more conservative there).
+
 ## [0.12.0] — 2026-08-11
 
 ### Added

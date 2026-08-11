@@ -253,6 +253,15 @@ async def test_no_wake_ping_when_the_recipient_is_polling():
         client = httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://relay.test")
         await client.put(CARDS_PATH, json=card.model_dump(mode="json"))
+        # connect() starts the poll task but does not wait for its long-poll to
+        # reach the relay; send before that and a wake fires by design (mail
+        # with nobody waiting). Sync on the exact condition under test.
+        for _ in range(200):
+            if app.state.relay.has_waiter(bob.address):
+                break
+            await asyncio.sleep(0.01)
+        else:
+            pytest.fail("poller never registered as a waiter")
         sender = AgentIdentity.generate("sender")
         env = Envelope(
             type=EnvelopeType.HANDSHAKE_INITIATE, sender=sender.address,
