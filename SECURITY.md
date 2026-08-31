@@ -4,7 +4,7 @@ AMP is a security protocol; we take vulnerabilities seriously.
 
 ## Reporting
 
-Email **security@fareground.ai** with details. Do not open a public issue for a
+Email **security@fareground.com** with details. Do not open a public issue for a
 suspected vulnerability. We aim to acknowledge within 3 business days and to
 ship a fix or mitigation for confirmed high-severity issues promptly.
 
