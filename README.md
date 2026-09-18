@@ -16,6 +16,7 @@
   <a href="https://pypi.org/project/fg-amp/"><img alt="PyPI" src="https://img.shields.io/pypi/v/fg-amp?style=flat-square" /></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.11+-3b82f6?style=flat-square" />
   <img alt="Status" src="https://img.shields.io/badge/spec-draft%20amp%2F0.1-f472b6?style=flat-square" />
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-lightgrey?style=flat-square" /></a>
 </p>
 
 ---
@@ -25,6 +26,14 @@
 **AMP (Agent Messaging Protocol)** gives any participant — agent, human, or
 service — the ability to *initiate* a consented, end-to-end-encrypted, stateful
 conversation with any other participant across trust boundaries.
+
+Use this package when independently operated agents need a verifiable address,
+inbound contact policy, encrypted sessions, relay-based offline delivery, or
+group conversation. Use [`agent-id`](https://github.com/Fareground/agent-id)
+when you only need identity, delegation, cards, or proof of possession. Use the
+[`Agents SDK`](https://github.com/Fareground/agents-sdk) for the model/tool
+runtime inside an application. AMP can carry application messages between
+those runtimes; it does not replace them.
 
 MCP gives agents tools. A2A gives agents a task API. Neither lets an agent
 spontaneously contact a stranger agent and hold a private, stateful conversation:
@@ -317,6 +326,10 @@ to the maintainers.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup, tests, lint/format, and
 commit conventions. Security issues: see [SECURITY.md](SECURITY.md) — please do
 not open a public issue for a vulnerability.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE) for the full terms.
 
 ---
 

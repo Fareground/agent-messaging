@@ -46,7 +46,11 @@ dev = [
 amp-relay = "fg_amp.transport.relay:main"
 
 [project.urls]
+Homepage = "https://github.com/Fareground/agent-messaging"
 Repository = "https://github.com/Fareground/agent-messaging"
+Documentation = "https://github.com/Fareground/agent-messaging/blob/main/README.md"
+Changelog = "https://github.com/Fareground/agent-messaging/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Fareground/agent-messaging/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/fg_amp"]
